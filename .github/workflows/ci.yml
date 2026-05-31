@@ -1,81 +1,69 @@
 name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
 jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
-    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
       with:
-        ruby-version: '3.4'
+        ruby-version: "3.4"
         bundler-cache: true
+
     - run: bundle exec rubocop
+
   tests:
-    needs: lint
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        ruby:
-        - ruby-3.2
-        - ruby-3.3
-        - ruby-3.4
-        - ruby-4.0
-        - jruby-9.4
-        - jruby-10.0
-        activerecord:
-        - '6.1'
-        - '7.0'
-        - '7.1'
-        - '7.2'
-        - '8.0'
-        - '8.1'
-        postgresql:
-        - '13'
-        - '14'
-        - '15'
-        - '16'
-        - '17'
-        - '18'
+        ruby:         ["ruby-3.2", "ruby-3.3", "ruby-3.4", "ruby-4.0", "jruby-9.4", "jruby-10.0"]
+        activerecord: ["6.1", "7.0", "7.1", "7.2", "8.0", "8.1"]
+        postgresql:   ["13", "14", "15", "16", "17", "18"]
         exclude:
-        - ruby: jruby-9.4
-          activerecord: '7.2'
-        - ruby: jruby-9.4
-          activerecord: '8.0'
-        - ruby: jruby-9.4
-          activerecord: '8.1'
-        - ruby: jruby-10.0
-          activerecord: '8.0'
-        - ruby: jruby-10.0
-          activerecord: '8.1'
-    name: Active Record ${{ matrix.activerecord }} with PostgreSQL ${{ matrix.postgresql
-      }} on ${{ matrix.ruby }}
+          # fails due to "ArgumentError: when initializing an Active Record adapter with a config hash, that should be the only argument" in db:schema:load
+          - ruby: "jruby-9.4"
+            activerecord: "7.2"
+          - ruby: "jruby-9.4"
+            activerecord: "8.0"
+          # fails due to "Because activerecord >= 8.0.0.beta1 depends on Ruby >= 3.2.0 and Gemfile depends on activerecord ~> 8.1, Ruby >= 3.2.0 is required. So, because current Ruby version is = 3.1.7, version solving has failed."
+          - ruby: "jruby-9.4"
+            activerecord: "8.1"
+          # https://github.com/jruby/activerecord-jdbc-adapter/issues/1173
+          - ruby: "jruby-10.0"
+            activerecord: "8.0"
+          # https://github.com/jruby/activerecord-jdbc-adapter/issues/1184
+          - ruby: "jruby-10.0"
+            activerecord: "8.1"
+    name: "Active Record ${{ matrix.activerecord }} with PostgreSQL ${{ matrix.postgresql }} on ${{ matrix.ruby }}"
     services:
       db:
         image: postgres:${{ matrix.postgresql }}
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: jsonb_accessor
-        ports:
-        - 5432:5432
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s
-          --health-retries 5
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
     - run: echo "gem 'activerecord', '~> ${{ matrix.activerecord }}.0'" > Gemfile.local
-    - if: matrix.activerecord == '6.1'
-      run: printf "gem 'concurrent-ruby', '< 1.3.5'\ngem 'mutex_m'\ngem 'base64'\ngem
-        'bigdecimal'\ngem 'logger'\n" >> Gemfile.local
-    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f
+
+    - if:  matrix.activerecord == '6.1' # see https://github.com/rails/rails/pull/54264#issuecomment-2596149819 and https://www.ruby-lang.org/en/news/2024/12/25/ruby-3-4-0-released/#standard-library-updates and https://www.ruby-lang.org/en/news/2025/12/25/ruby-4-0-0-released/#stdlib-updates
+      run: printf "gem 'concurrent-ruby', '< 1.3.5'\ngem 'mutex_m'\ngem 'base64'\ngem 'bigdecimal'\ngem 'logger'\n" >> Gemfile.local
+
+    - uses: ruby/setup-ruby@319994f95fa847cf3fb3cd3dbe89f6dcde9f178f # v1.295.0
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
+
     - run: bundle exec rake db:schema:load
+
     - run: bundle exec rake spec
-'on':
-  push:
-    branches:
-    - master
-  pull_request:
-    branches:
-    - master
-  workflow_dispatch: null
