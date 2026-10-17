@@ -11,9 +11,8 @@ require "erb"
 RSpec::Core::RakeTask.new
 RuboCop::RakeTask.new
 
-# rubocop:disable Style/MixinUsage
+# rubocop:disable-next Style/MixinUsage
 include ActiveRecord::Tasks
-# rubocop:enable Style/MixinUsage
 
 root = File.expand_path __dir__
 db_dir = File.join(root, "db")
